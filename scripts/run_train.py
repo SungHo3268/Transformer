@@ -86,6 +86,7 @@ if args.gpu:
 ############################ Start Train ############################
 stack = 0
 step_num = 0
+total_loss = 0
 for epoch in range(args.max_epoch):
     print(f'epoch: {epoch+1}/{args.max_epoch}')
     model.train()
@@ -110,20 +111,22 @@ for epoch in range(args.max_epoch):
                 src = src.to(device)
                 tgt_in = tgt_in.to(device)
                 tgt_out = tgt_out.to(device)
-            optimizer.zero_grad()
             with autocast():
                 pred = model(src, tgt_in)
                 loss = criterion(pred.view(-1, V), tgt_out.view(-1))
+            loss /= args.step_batch
             loss.backward()
+            total_loss += loss.data
             stack += 1
             if stack % args.step_batch == 0:
-                loss /= args.step_batch
                 step_num += 1
                 optimizer.param_groups[0]['lr'] = d_model ** (-0.5) * np.minimum(step_num ** (-0.5),
                                                                                  step_num * (warmup_steps ** (-1.5)))
                 optimizer.step()
-                tb_writer.add_scalar('loss/step', loss.data, step_num)
+                optimizer.zero_grad()
+                tb_writer.add_scalar('loss/step', total_loss, step_num)
                 tb_writer.add_scalar('lr/step', optimizer.param_groups[0]['lr'], step_num)
+                total_loss = 0
             else:
                 continue
             tb_writer.flush()
