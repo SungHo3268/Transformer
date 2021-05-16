@@ -36,7 +36,7 @@ class InputLayer(nn.Module):
     def __init__(self, D, embed_weight, max_sen_len, dropout, gpu, cuda):
         """"""
         super(InputLayer, self).__init__()
-        embed_weight = embed_weight * np.sqrt(D)
+        self.D = D
         self.embedding = nn.Embedding.from_pretrained(embed_weight, freeze=False, padding_idx=0)
         self.positional = PositionalEncoding(max_sen_len, D, gpu, cuda)
         self.dropout = nn.Dropout(p=dropout)
@@ -47,6 +47,7 @@ class InputLayer(nn.Module):
         :return: x = (batch_size, max_sen_len, embed_dim)
         """
         x = self.embedding(x)       # x = (batch_size, max_sen_len, embed_dim)
+        x *= np.sqrt(self.D)
         x = self.positional(x)
         x = self.dropout(x)
         return x

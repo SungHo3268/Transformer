@@ -18,3 +18,6 @@ def apply_mask(x, zero_mask, inf_mask):
     x *= zero_mask
     x += inf_mask
     return x
+
+
+# def eval_test(model, )
