@@ -53,11 +53,13 @@ class InputLayer(nn.Module):
 
 
 class ScaledDotProdAtt(nn.Module):
-    def __init__(self, d, mask, gpu, cuda):
+    def __init__(self, d, max_sen_len, mask, gpu, cuda):
         """"""
         super(ScaledDotProdAtt, self).__init__()
         self.d = d
         self.mask = mask
+        if self.mask:
+            self.zero_mask, self.inf_mask = get_mask(max_sen_len, gpu, cuda)
         self.gpu = gpu
         self.cuda = cuda
 
@@ -71,14 +73,14 @@ class ScaledDotProdAtt(nn.Module):
         att = torch.matmul(q, k.transpose(2, 3))        # att = (batch_size, head_num, seq_len, seq_len)
         att = att / (self.d**0.5)
         if self.mask:
-            att = get_masking(att, self.gpu, self.cuda)
+            att = apply_mask(att, self.zero_mask, self.inf_mask)
         att = F.softmax(att, dim=-1)
         att = torch.matmul(att, v)                      # att = (batch_size, head_num, seq_len, d_v)
         return att
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, head_num, dropout, gpu, cuda, mask):
+    def __init__(self, d_model, head_num, max_sen_len, dropout, gpu, cuda, mask):
         """"""
         super(MultiHeadAttention, self).__init__()
         self.head_num = head_num
@@ -86,7 +88,7 @@ class MultiHeadAttention(nn.Module):
         self.linear_q = nn.Linear(d_model, d_model, bias=False)
         self.linear_k = nn.Linear(d_model, d_model, bias=False)
         self.linear_v = nn.Linear(d_model, d_model, bias=False)
-        self.attention = ScaledDotProdAtt(self.d, mask, gpu, cuda)
+        self.attention = ScaledDotProdAtt(self.d, max_sen_len, mask, gpu, cuda)
         self.linear_o = nn.Linear(d_model, d_model, bias=False)
         self.dropout = nn.Dropout(p=dropout)
         self.residual = None
@@ -144,10 +146,10 @@ class PositionwiseFFN(nn.Module):
 
 
 class Encoder_Sublayer(nn.Module):
-    def __init__(self, d_model, d_ff, head_num, dropout, gpu, cuda):
+    def __init__(self, d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda):
         """"""
         super(Encoder_Sublayer, self).__init__()
-        self.multi_head_attention = MultiHeadAttention(d_model, head_num, dropout, gpu, cuda, mask=False)
+        self.multi_head_attention = MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=False)
         self.pos_feed_forward = PositionwiseFFN(d_model, d_ff, dropout)
 
     def forward(self, x):
@@ -162,11 +164,12 @@ class Encoder_Sublayer(nn.Module):
 
 
 class Decoder_Sublayer(nn.Module):
-    def __init__(self, d_model, d_ff, head_num, dropout, gpu, cuda):
+    def __init__(self, d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda):
         """"""
         super(Decoder_Sublayer, self).__init__()
-        self.masked_multi_head_attention = MultiHeadAttention(d_model, head_num, dropout, gpu, cuda, mask=True)
-        self.multi_head_attention = MultiHeadAttention(d_model, head_num, dropout, gpu, cuda, mask=False)
+        self.masked_multi_head_attention = \
+            MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=True)
+        self.multi_head_attention = MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=False)
         self.pos_feed_forward = PositionwiseFFN(d_model, d_ff, dropout)
 
     def forward(self, x, hs):

@@ -21,7 +21,9 @@ from src.criterion import LabelSmoothingLoss
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=int, default=5678)
-parser.add_argument('--max_epoch', type=int, default=18)        # 4378047 / 16 / 49 =
+parser.add_argument('--max_epoch', type=int, default=18)        # 4378047/ 49 stack/ 16 batch = 5584 = 1epoch step num
+parser.add_argument('--step_batch', type=int, default=49)
+parser.add_argument('--batch_size', type=int, default=12)
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
 args = parser.parse_args()
@@ -44,8 +46,6 @@ tb_writer = SummaryWriter(tb_dir)
 
 
 ############################ Hyperparameter ############################
-step_batch = 49         # 1 step = 49 batches = 49 * (16 sentences) = 49 * 16 * (256 tokens) = about 25000 train tokens
-batch_size = 12
 max_sen_len = 256
 embed_dim = 512
 hidden_layer_num = 6
@@ -102,7 +102,7 @@ for epoch in range(args.max_epoch):
 
         # make batch
         train = TensorDataset(src_input, tgt_input, tgt_output)
-        train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, drop_last=True)
+        train_loader = DataLoader(train, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
         for src, tgt_in, tgt_out in tqdm(train_loader, total=len(train_loader),
                                          desc=f'seg: {i+1}/5', bar_format='{l_bar}{bar:20}{r_bar}'):
@@ -110,21 +110,18 @@ for epoch in range(args.max_epoch):
                 src = src.to(device)
                 tgt_in = tgt_in.to(device)
                 tgt_out = tgt_out.to(device)
-
             optimizer.zero_grad()
             with autocast():
                 pred = model(src, tgt_in)
                 loss = criterion(pred.view(-1, V), tgt_out.view(-1))
             loss.backward()
             stack += 1
-
-            if stack % step_batch == 0:
-                loss /= step_batch
+            if stack % args.step_batch == 0:
+                loss /= args.step_batch
                 step_num += 1
                 optimizer.param_groups[0]['lr'] = d_model ** (-0.5) * np.minimum(step_num ** (-0.5),
                                                                                  step_num * (warmup_steps ** (-1.5)))
                 optimizer.step()
-
                 tb_writer.add_scalar('loss/step', loss.data, step_num)
                 tb_writer.add_scalar('lr/step', optimizer.param_groups[0]['lr'], step_num)
             else:
@@ -132,7 +129,7 @@ for epoch in range(args.max_epoch):
             tb_writer.flush()
     print('Saving the model...')
     torch.save(model.state_dict(), os.path.join(log_dir, 'ckpt/model.ckpt'))
-    torch.save(optimizer.state_dict(), os.path.join(log_dir, 'ckpt/model.ckpt'))
+    torch.save(optimizer.state_dict(), os.path.join(log_dir, 'ckpt/optimizer.ckpt'))
     print('\n')
 
     # evaluation

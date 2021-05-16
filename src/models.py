@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from src.layers import *
+import time
 
 
 class Encoder(nn.Module):
@@ -12,7 +13,7 @@ class Encoder(nn.Module):
         self.input_layer = InputLayer(D, embed_weight, max_sen_len, dropout, gpu, cuda)
         self.sub_layers = nn.ModuleList()
         for _ in range(hidden_layer_num):
-            self.sub_layers.append(Encoder_Sublayer(d_model, d_ff, head_num, dropout, gpu, cuda))
+            self.sub_layers.append(Encoder_Sublayer(d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda))
 
     def forward(self, x):
         """
@@ -33,7 +34,7 @@ class Decoder(nn.Module):
         self.input_layer = InputLayer(D, embed_weight, max_sen_len, dropout, gpu, cuda)
         self.sub_layers = nn.ModuleList()
         for _ in range(hidden_layer_num):
-            self.sub_layers.append(Decoder_Sublayer(d_model, d_ff, head_num, dropout, gpu, cuda))
+            self.sub_layers.append(Decoder_Sublayer(d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda))
 
     def forward(self, x, hs):
         """
