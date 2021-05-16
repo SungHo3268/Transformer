@@ -130,6 +130,3 @@ for epoch in range(args.max_epoch):
     torch.save(model.state_dict(), os.path.join(log_dir, 'ckpt/model.ckpt'))
     torch.save(optimizer.state_dict(), os.path.join(log_dir, 'ckpt/optimizer.ckpt'))
     print('\n')
-
-    # evaluation
-    model.eval()
