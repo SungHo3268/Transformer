@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import torch
 
 
-max_sen_len = 308
+max_sen_len = 128
 D = 512
 pos_encoding = torch.zeros(max_sen_len, D)
 for pos in range(max_sen_len):

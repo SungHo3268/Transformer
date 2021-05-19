@@ -13,14 +13,16 @@ class LabelSmoothingLoss(nn.Module):
     def forward(self, pred, label):
         """
         :param pred: (batch_size * seq_len(max_sen_len), V)
-        :param label: (batch_size * seq_len(max_sen_len))
+        :param label: (batch_size * seq_len(max_sen_len), )
         :return:
         """
         assert pred.ndim == 2
         pred = pred.log_softmax(dim=self.softmax_dim)
         label = label.to(torch.int64)
         with torch.no_grad():
-            true_dist = torch.zeros_like(pred)
-            true_dist.fill_(self.label_smoothing / (self.V-1))
+            true_dist = torch.full_like(pred, self.label_smoothing / (self.V-2))
             true_dist.scatter_(1, label.data.unsqueeze(1), self.confidence)
-        return torch.mean(torch.sum(-true_dist * pred, dim=self.softmax_dim))
+            # pad loss mask
+            mask = (label == 0).to(torch.int64)     # mask = (batch_size * seq_len(max_sen_len), )
+            true_dist *= mask.unsqueeze(1)
+        return torch.sum(-true_dist * pred) / sum(mask)
