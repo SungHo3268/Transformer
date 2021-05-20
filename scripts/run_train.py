@@ -23,8 +23,8 @@ parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=int, default=5678)
 parser.add_argument('--max_sen_len', type=int, default=128)
 parser.add_argument('--max_epoch', type=int, default=18)        # 1epoch = about 5612 steps/    18 epoch = 100K steps
-parser.add_argument('--step_batch', type=int, default=30)       # 780 sentences are about 25000 tokens = 1 step
-parser.add_argument('--batch_size', type=int, default=26)       # step_batch * batch_size = about 780 sentences = 1 step
+parser.add_argument('--step_batch', type=int, default=39)       # 780 sentences are about 25000 tokens = 1 step
+parser.add_argument('--batch_size', type=int, default=20)       # step_batch * batch_size = about 780 sentences = 1 step
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
 args = parser.parse_args()
@@ -71,14 +71,14 @@ embed_weight = nn.parameter.Parameter(torch.empty(V, embed_dim), requires_grad=T
 nn.init.normal_(embed_weight, mean=0, std=embed_dim**(-0.5))
 model = Transformer(V, embed_dim, embed_weight, args.max_sen_len, dropout,
                     hidden_layer_num, d_model, d_ff, head_num, args.gpu, args.cuda)
+criterion = LabelSmoothingLoss(label_smoothing, V, ignore_index=0)
+# criterion = nn.CrossEntropyLoss(ignore_index=0)
+optimizer = optim.Adam(model.parameters(), lr=0, betas=(beta1, beta2), eps=epsilon)
 device = None
 if args.gpu:
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
     model.to(device)
-
-criterion = LabelSmoothingLoss(label_smoothing, V)
-# criterion = nn.CrossEntropyLoss(ignore_index=0)
-optimizer = optim.Adam(model.parameters(), lr=0, betas=(beta1, beta2), eps=epsilon)
+    criterion.to(device)
 
 
 ############################ Start Train ############################
@@ -128,25 +128,25 @@ for epoch in range(args.max_epoch):
             tb_writer.add_scalar('lr/step', optimizer.param_groups[0]['lr'], step_num)
             total_loss = 0
 
-            #######
-            result = torch.softmax(out[10], dim=-1)
-            result = torch.max(result, dim=-1)[1]
-            result = result.to(torch.device('cpu'))
-            sen = []
-            temp = ''
-            for idx in result:
-                word = id_to_word[int(idx)]
-                if '@@' in word:
-                    temp += word.replace('@@', '')
-                    continue
-                if temp:
-                    sen.append(temp)
-                    temp = ''
-                sen.append(word)
-            if temp:                # if the last word was included '@@' add to sentence.
-                sen.append(temp)
-            print(' '.join(sen))
-            #######
+            # #######
+            # result = torch.softmax(out[10], dim=-1)
+            # result = torch.max(result, dim=-1)[1]
+            # result = result.to(torch.device('cpu'))
+            # sen = []
+            # temp = ''
+            # for idx in result:
+            #     word = id_to_word[int(idx)]
+            #     if '@@' in word:
+            #         temp += word.replace('@@', '')
+            #         continue
+            #     if temp:
+            #         sen.append(temp)
+            #         temp = ''
+            #     sen.append(word)
+            # if temp:                # if the last word was included '@@' add to sentence.
+            #     sen.append(temp)
+            # print(' '.join(sen))
+            # #######
 
         else:
             continue
