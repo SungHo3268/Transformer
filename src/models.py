@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from src.layers import *
+import time
 
 
 class Encoder(nn.Module):
@@ -74,7 +75,15 @@ class Transformer(nn.Module):
         self.fc.weight_ = self.embed_weight.T
 
     def forward(self, src_input, tgt_input, s_len, t_len):
+        print("\n")
+        t1 = time.time()
         hs = self.encoder(src_input, s_len)            # hs = (batch_size, max_sen_len, d_model)
+        t2 = time.time()
+        print("Encoder: ", t2 - t1)
         out = self.decoder(tgt_input, hs, s_len, t_len)       # out = (batch_size, seq_len(max_sen_len), d_model)
+        t3 = time.time()
+        print("Decoder: ", t3-t2)
         out = self.fc(out)                      # out = (batch_size, seq_len(max_sen_len), V)
+        t4 = time.time()
+        print("Fully connected: ", t4-t3)
         return out

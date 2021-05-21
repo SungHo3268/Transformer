@@ -59,8 +59,8 @@ class ScaledDotProdAtt(nn.Module):
         self.d = d
         self.ahead_mask = ahead_mask
         if self.ahead_mask:
-            self.zero_mask, self.inf_mask = get_forward_mask(max_sen_len, gpu, cuda)
-        self.att_zero_mask, self.att_inf_mask = get_att_mask(max_sen_len, gpu, cuda)
+            self.inf_mask = get_forward_mask(max_sen_len, gpu, cuda)
+        self.att_inf_mask = get_att_mask(max_sen_len, gpu, cuda)
         self.gpu = gpu
         self.cuda = cuda
 
@@ -75,10 +75,9 @@ class ScaledDotProdAtt(nn.Module):
         att = torch.matmul(q, k.transpose(2, 3))        # att = (batch_size, head_num, seq_len, seq_len)
         att = att / (self.d**0.5)
         if self.ahead_mask:
-            # att = apply_forward_mask(att, self.zero_mask, self.inf_mask)
-            self.att_zero_mask *= self.zero_mask
             self.att_inf_mask += self.inf_mask
-        att = apply_att_mask(att, sen_len, self.att_zero_mask, self.att_inf_mask)
+        if sen_len is not None:
+            att = apply_att_mask(att, sen_len, self.att_inf_mask)
         att = F.softmax(att, dim=-1)
         att = torch.matmul(att, v)                      # att = (batch_size, head_num, seq_len, d_v)
         return att

@@ -17,7 +17,6 @@ class LabelSmoothingLoss(nn.Module):
         one_hot = torch.full((tgt_vocab_size,), smoothing_value)
         one_hot[self.ignore_index] = 0
         self.register_buffer('one_hot', one_hot.unsqueeze(0))   # register buffer is not a parameter, but in state_dict.
-
         self.confidence = 1.0 - label_smoothing
 
     def forward(self, output, target):
@@ -25,7 +24,7 @@ class LabelSmoothingLoss(nn.Module):
         output (FloatTensor): batch_size x n_classes
         target (LongTensor): batch_size
         """
-        model_prob = self.one_hot.repeat(target.size(0), 1)
+        model_prob = self.one_hot.repeat(target.size(0), 1)                 # model_prob = (target_size(0), V)
         model_prob.scatter_(1, target.unsqueeze(1), self.confidence)
         mask = (target == self.ignore_index)
         model_prob.masked_fill_(mask.unsqueeze(1), 0)      # broadcasting

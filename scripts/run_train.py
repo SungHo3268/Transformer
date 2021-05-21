@@ -10,6 +10,7 @@ from torch.cuda.amp import autocast
 import numpy as np
 from tqdm.auto import tqdm
 import pickle
+import time
 import sys
 import os
 sys.path.append(os.getcwd())
@@ -126,15 +127,18 @@ for epoch in range(args.max_epoch):
             t_len = t_len.to(device)
         with autocast():
             out = model(src, tgt_in, s_len, t_len)
+            t0 = time.time()
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
-
         loss /= args.step_batch
+        t1 = time.time()
+        print("criterion: ", t1-t0)
         loss.backward()
+        t2 = time.time()
+        print("backward: ", t2-t1)
         total_loss += loss.data
         stack += 1
         if stack % args.step_batch == 0:
             step_num += 1
-            nn.utils.clip_grad_norm_(model.parameters(), max_norm=1, norm_type=2)
             optimizer.param_groups[0]['lr'] = d_model ** (-0.5) * np.minimum(step_num ** (-0.5),
                                                                              step_num * (warmup_steps ** (-1.5)))
             optimizer.step()
