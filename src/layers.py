@@ -10,7 +10,7 @@ from src.functions import *
 class PositionalEncoding(nn.Module):
     def __init__(self, max_sen_len, D, gpu, cuda):
         super(PositionalEncoding, self).__init__()
-        D_ext = D * 5
+        D_ext = D * 2
         self.pos_encoding = torch.zeros(max_sen_len, D_ext)
         if gpu:
             self.pos_encoding = self.pos_encoding.to(torch.device(f'cuda:{cuda}'))
@@ -59,8 +59,8 @@ class ScaledDotProdAtt(nn.Module):
         self.d = d
         self.ahead_mask = ahead_mask
         if self.ahead_mask:
-            self.inf_mask = get_forward_mask(max_sen_len, gpu, cuda)
-        self.att_inf_mask = get_att_mask(max_sen_len, gpu, cuda)
+            self.inf_mask = get_forward_mask(max_sen_len)
+        self.att_inf_mask = get_att_mask(max_sen_len)
         self.gpu = gpu
         self.cuda = cuda
 
@@ -77,7 +77,7 @@ class ScaledDotProdAtt(nn.Module):
         if self.ahead_mask:
             self.att_inf_mask += self.inf_mask
         if sen_len is not None:
-            att = apply_att_mask(att, sen_len, self.att_inf_mask)
+            att = apply_att_mask(att, sen_len, self.att_inf_mask, self.gpu, self.cuda)
         att = F.softmax(att, dim=-1)
         att = torch.matmul(att, v)                      # att = (batch_size, head_num, seq_len, d_v)
         return att
@@ -94,7 +94,6 @@ class MultiHeadAttention(nn.Module):
         self.attention = ScaledDotProdAtt(self.d, max_sen_len, mask, gpu, cuda)
         self.linear_o = nn.Linear(d_model, d_model, bias=False)
         self.dropout = nn.Dropout(p=dropout)
-        self.residual = None
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
         nn.init.xavier_uniform_(self.linear_q.weight)
@@ -111,7 +110,7 @@ class MultiHeadAttention(nn.Module):
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
         batch_size, seq_len, _ = q.size()
-        self.residual = q
+        residual = q.clone().detach()
         q = self.linear_q(q).view(batch_size, seq_len, self.head_num, self.d)
         k = self.linear_k(k).view(batch_size, seq_len, self.head_num, self.d)
         v = self.linear_v(v).view(batch_size, seq_len, self.head_num, self.d)
@@ -125,7 +124,7 @@ class MultiHeadAttention(nn.Module):
         att = att.contiguous().view(batch_size, seq_len, -1)     # att = (batch_size, seq_len(max_sen_len), d_model)
         out = self.linear_o(att)                      # out = (batch_size, seq_len(max_sen_len), d_model)
         out = self.dropout(out)
-        out += self.residual
+        out += residual
         out = self.layer_norm(out)
         return out
 
@@ -137,7 +136,6 @@ class PositionwiseFFN(nn.Module):
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(d_ff, d_model)
         self.dropout = nn.Dropout(p=dropout)
-        self.residual = None
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
         nn.init.xavier_uniform_(self.linear1.weight)
@@ -150,12 +148,12 @@ class PositionwiseFFN(nn.Module):
         :param x: the output of the MultiHeadAttention layer. x= (batch_size, seq_len(max_sen_len), d_model)
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
-        self.residual = x
+        residual = x.clone().detach()
         out = self.linear1(x)           # out = (batch_size, seq_len(max_sen_len), d_ff)
         out = self.relu(out)
         out = self.linear2(out)         # out = (batch_size, seq_len(max_sen_len), d_model)
         out = self.dropout(out)
-        out += self.residual
+        out += residual
         out = self.layer_norm(out)
         return out
 

@@ -24,9 +24,9 @@ parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=int, default=5678)
 parser.add_argument('--max_sen_len', type=int, default=128)
 parser.add_argument('--max_epoch', type=int, default=18)        # 1epoch = about 5612 steps/    18 epoch = 100K steps
-parser.add_argument('--step_batch', type=int, default=39)       # 780 sentences are about 25000 tokens = 1 step
-parser.add_argument('--batch_size', type=int, default=20)       # step_batch * batch_size = about 780 sentences = 1 step
-parser.add_argument('--random_seed', type=int, default=515)
+parser.add_argument('--step_batch', type=int, default=30)       # 780 sentences are about 25000 tokens = 1 step
+parser.add_argument('--batch_size', type=int, default=26)       # step_batch * batch_size = about 780 sentences = 1 step
+parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--eval_interval', type=int, default=10)
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
@@ -61,8 +61,8 @@ beta2 = 0.98
 epsilon = 10**(-9)
 dropout = 0.1
 label_smoothing = 0.1
-np.random.seed(515)
-torch.manual_seed(515)
+np.random.seed(args.random_seed)
+torch.manual_seed(args.random_seed)
 
 ############################ InitNET ############################
 # load dictionary
@@ -121,20 +121,20 @@ for epoch in range(args.max_epoch):
                                                    bar_format='{l_bar}{bar:20}{r_bar}'):
         if args.gpu:
             src = src.to(device)
-            s_len = s_len.to(device)
+            # s_len = s_len.to(device)
             tgt_in = tgt_in.to(device)
             tgt_out = tgt_out.to(device)
-            t_len = t_len.to(device)
+            # t_len = t_len.to(device)
         with autocast():
             out = model(src, tgt_in, s_len, t_len)
-            t0 = time.time()
+            # t0 = time.time()
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
         loss /= args.step_batch
-        t1 = time.time()
-        print("criterion: ", t1-t0)
+        # t1 = time.time()
+        # print("criterion: ", t1-t0)
         loss.backward()
-        t2 = time.time()
-        print("backward: ", t2-t1)
+        # t2 = time.time()
+        # print("backward: ", t2-t1)
         total_loss += loss.data
         stack += 1
         if stack % args.step_batch == 0:
