@@ -12,8 +12,6 @@ class PositionalEncoding(nn.Module):
         super(PositionalEncoding, self).__init__()
         D_ext = D * 2
         self.pos_encoding = torch.zeros(max_sen_len, D_ext)
-        if gpu:
-            self.pos_encoding = self.pos_encoding.to(torch.device(f'cuda:{cuda}'))
         for pos in range(max_sen_len):
             for i in range(D_ext):
                 exponent = pos / (10000**(2*i/D_ext))
@@ -23,6 +21,8 @@ class PositionalEncoding(nn.Module):
                 else:
                     self.pos_encoding[pos][i] = torch.cos(exponent)
         self.pos_encoding = self.pos_encoding[:, :D]
+        if gpu:
+            self.pos_encoding = self.pos_encoding.to(torch.device(f'cuda:{cuda}'))
 
     def forward(self, x):
         """
@@ -110,7 +110,7 @@ class MultiHeadAttention(nn.Module):
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
         batch_size, seq_len, _ = q.size()
-        residual = q.clone().detach()
+        residual = q.clone()
         q = self.linear_q(q).view(batch_size, seq_len, self.head_num, self.d)
         k = self.linear_k(k).view(batch_size, seq_len, self.head_num, self.d)
         v = self.linear_v(v).view(batch_size, seq_len, self.head_num, self.d)
@@ -148,7 +148,7 @@ class PositionwiseFFN(nn.Module):
         :param x: the output of the MultiHeadAttention layer. x= (batch_size, seq_len(max_sen_len), d_model)
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
-        residual = x.clone().detach()
+        residual = x.clone()
         out = self.linear1(x)           # out = (batch_size, seq_len(max_sen_len), d_ff)
         out = self.relu(out)
         out = self.linear2(out)         # out = (batch_size, seq_len(max_sen_len), d_model)

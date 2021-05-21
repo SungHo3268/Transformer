@@ -21,7 +21,7 @@ def make_dict(file):
     return word_to_id, id_to_word
 
 
-def make_source(dataset, word_to_id, max_sen_len, padding_idx=None):
+def make_source(dataset, word_to_id, max_sen_len, padding_idx=0):
     source = []
     source_len = []
     for line in tqdm(dataset, desc='Making source...', bar_format='{l_bar}{bar:20}{r_bar}'):
@@ -44,7 +44,7 @@ def make_source(dataset, word_to_id, max_sen_len, padding_idx=None):
     return source, source_len
 
 
-def make_target(dataset, word_to_id, max_sen_len, padding_idx=None):
+def make_target(dataset, word_to_id, max_sen_len, padding_idx=0):
     target_input = []
     target_output = []
     target_len = []

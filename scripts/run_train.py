@@ -129,10 +129,11 @@ for epoch in range(args.max_epoch):
             out = model(src, tgt_in, s_len, t_len)
             # t0 = time.time()
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
-        loss /= args.step_batch
+            loss /= args.step_batch
         # t1 = time.time()
         # print("criterion: ", t1-t0)
         loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), max_norm=5, norm_type=2.)
         # t2 = time.time()
         # print("backward: ", t2-t1)
         total_loss += loss.data

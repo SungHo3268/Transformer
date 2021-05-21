@@ -6,8 +6,7 @@ import time
 
 
 class Encoder(nn.Module):
-    def __init__(self, max_sen_len, dropout,
-                 hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
+    def __init__(self, max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
         super(Encoder, self).__init__()
         self.sub_layers = nn.ModuleList()
         for _ in range(hidden_layer_num):
@@ -25,8 +24,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, max_sen_len, dropout,
-                 hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
+    def __init__(self, max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
         super(Decoder, self).__init__()
         self.sub_layers = nn.ModuleList()
         for _ in range(hidden_layer_num):
@@ -46,8 +44,7 @@ class Decoder(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, V, D, embed_weight, max_sen_len, dropout,
-                 hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
+    def __init__(self, V, D, embed_weight, max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
         """
         :param V: Vocabulary size
         :param D: embedding dimension size
