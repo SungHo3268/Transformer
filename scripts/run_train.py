@@ -75,7 +75,7 @@ nn.init.normal_(embed_weight, mean=0, std=embed_dim**(-0.5))
 model = Transformer(V, embed_dim, embed_weight, args.max_sen_len, dropout,
                     hidden_layer_num, d_model, d_ff, head_num, args.gpu, args.cuda)
 criterion = LabelSmoothingLoss(label_smoothing, V, ignore_index=0)
-optimizer = optim.Adam(model.parameters(), betas=(beta1, beta2), eps=epsilon)
+optimizer = optim.Adam(model.parameters(), lr=0, betas=(beta1, beta2), eps=epsilon)
 device = None
 if args.gpu:
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
@@ -127,12 +127,14 @@ for epoch in range(args.max_epoch):
         with autocast():
             out = model(src, tgt_in, s_len, t_len)
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
+
         loss /= args.step_batch
         loss.backward()
         total_loss += loss.data
         stack += 1
         if stack % args.step_batch == 0:
             step_num += 1
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=1, norm_type=2)
             optimizer.param_groups[0]['lr'] = d_model ** (-0.5) * np.minimum(step_num ** (-0.5),
                                                                              step_num * (warmup_steps ** (-1.5)))
             optimizer.step()
