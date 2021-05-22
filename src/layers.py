@@ -10,17 +10,13 @@ from src.functions import *
 class PositionalEncoding(nn.Module):
     def __init__(self, max_sen_len, D, gpu, cuda):
         super(PositionalEncoding, self).__init__()
-        D_ext = D * 2
-        self.pos_encoding = torch.zeros(max_sen_len, D_ext)
+        self.pos_encoding = torch.empty(max_sen_len, D)
         for pos in range(max_sen_len):
-            for i in range(D_ext):
-                exponent = pos / (10000**(2*i/D_ext))
+            for i in range(D//2):
+                exponent = pos / (10000**(2*i/D))
                 exponent = torch.FloatTensor([exponent])
-                if i % 2 == 0:
-                    self.pos_encoding[pos][i] = torch.sin(exponent)
-                else:
-                    self.pos_encoding[pos][i] = torch.cos(exponent)
-        self.pos_encoding = self.pos_encoding[:, :D]
+                self.pos_encoding[pos][2*i] = torch.sin(exponent)
+                self.pos_encoding[pos][2*i+1] = torch.cos(exponent)
         if gpu:
             self.pos_encoding = self.pos_encoding.to(torch.device(f'cuda:{cuda}'))
 
@@ -73,7 +69,7 @@ class ScaledDotProdAtt(nn.Module):
         :return:
         """
         att = torch.matmul(q, k.transpose(2, 3))        # att = (batch_size, head_num, seq_len, seq_len)
-        att = att / (self.d**0.5)
+        att = att / np.sqrt(self.d)
         if self.ahead_mask:
             self.att_inf_mask += self.inf_mask
         if sen_len is not None:
@@ -94,7 +90,7 @@ class MultiHeadAttention(nn.Module):
         self.attention = ScaledDotProdAtt(self.d, max_sen_len, mask, gpu, cuda)
         self.linear_o = nn.Linear(d_model, d_model, bias=False)
         self.dropout = nn.Dropout(p=dropout)
-        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
+        self.layer_norm = nn.LayerNorm(d_model)
 
         nn.init.xavier_uniform_(self.linear_q.weight)
         nn.init.xavier_uniform_(self.linear_k.weight)
@@ -136,7 +132,7 @@ class PositionwiseFFN(nn.Module):
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(d_ff, d_model)
         self.dropout = nn.Dropout(p=dropout)
-        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
+        self.layer_norm = nn.LayerNorm(d_model)
 
         nn.init.xavier_uniform_(self.linear1.weight)
         nn.init.xavier_uniform_(self.linear2.weight)

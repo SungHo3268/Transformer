@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.tensorboard import SummaryWriter
-from torch.cuda.amp import autocast
+import torch.cuda.amp as amp
 import numpy as np
 from tqdm.auto import tqdm
 import pickle
@@ -83,7 +83,7 @@ if args.gpu:
     model.to(device)
     criterion.to(device)
 
-
+scaler = amp.GradScaler()
 ############################ Start Train ############################
 stack = 0
 step_num = 0
@@ -125,15 +125,14 @@ for epoch in range(args.max_epoch):
             tgt_in = tgt_in.to(device)
             tgt_out = tgt_out.to(device)
             # t_len = t_len.to(device)
-        with autocast():
+        with amp.autocast():
             out = model(src, tgt_in, s_len, t_len)
             # t0 = time.time()
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
             loss /= args.step_batch
         # t1 = time.time()
         # print("criterion: ", t1-t0)
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=5, norm_type=2.)
+        scaler.scale(loss).backward()
         # t2 = time.time()
         # print("backward: ", t2-t1)
         total_loss += loss.data
@@ -142,13 +141,16 @@ for epoch in range(args.max_epoch):
             step_num += 1
             optimizer.param_groups[0]['lr'] = d_model ** (-0.5) * np.minimum(step_num ** (-0.5),
                                                                              step_num * (warmup_steps ** (-1.5)))
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
             optimizer.zero_grad()
             tb_writer.add_scalar('loss/step', total_loss, step_num)
             tb_writer.add_scalar('lr/step', optimizer.param_groups[0]['lr'], step_num)
+            tb_writer.flush()
             total_loss = 0
             if stack % args.eval_interval == 0:
                 #######
+                print('\n')
                 result = torch.softmax(out[10], dim=-1)
                 result = torch.max(result, dim=-1)[1]
                 result = result.to(torch.device('cpu'))
@@ -170,7 +172,6 @@ for epoch in range(args.max_epoch):
 
         else:
             continue
-        tb_writer.flush()
     print('Saving the model...')
     torch.save(model.state_dict(), os.path.join(log_dir, 'ckpt/model.ckpt'))
     torch.save(optimizer.state_dict(), os.path.join(log_dir, 'ckpt/optimizer.ckpt'))
