@@ -83,7 +83,6 @@ if args.gpu:
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     criterion.to(device)
-
 scaler = amp.GradScaler()
 
 
@@ -105,7 +104,7 @@ for epoch in range(args.max_epoch):
     tgt_input = tgt_input[per]
     tgt_output = tgt_output[per]
 
-    print('Loading to gpu...')
+    print('Convert numpy to torch...')
     src_input = torch.from_numpy(src_input).to(torch.int64)
     tgt_input = torch.from_numpy(tgt_input).to(torch.int64)
     tgt_output = torch.from_numpy(tgt_output).to(torch.int64)
@@ -165,7 +164,6 @@ for epoch in range(args.max_epoch):
                     sen.append(temp)
                 print(' '.join(sen))
                 #######
-
         else:
             continue
     print('Saving the model...')
