@@ -64,6 +64,7 @@ label_smoothing = 0.1
 np.random.seed(args.random_seed)
 torch.manual_seed(args.random_seed)
 
+
 ############################ InitNET ############################
 # load dictionary
 pre_dir = 'datasets/nmt_data/wmt14_de_en/preprocessed'
@@ -84,6 +85,8 @@ if args.gpu:
     criterion.to(device)
 
 scaler = amp.GradScaler()
+
+
 ############################ Start Train ############################
 stack = 0
 step_num = 0
@@ -91,9 +94,9 @@ total_loss = 0
 for epoch in range(args.max_epoch):
     # load the preprocessed dataset
     print('Loading input data...')
-    with open(os.path.join(pre_dir, f'source_all.pkl'), 'rb') as fr:
+    with open(os.path.join(pre_dir, 'source_all.pkl'), 'rb') as fr:
         src_input, _ = pickle.load(fr)
-    with open(os.path.join(pre_dir, f'target_all.pkl'), 'rb') as fr:
+    with open(os.path.join(pre_dir, 'target_all.pkl'), 'rb') as fr:
         tgt_input, tgt_output, _ = pickle.load(fr)
 
     print('Shuffling the data...')
@@ -112,15 +115,12 @@ for epoch in range(args.max_epoch):
     train = TensorDataset(src_input, tgt_input, tgt_output)
     train_loader = DataLoader(train, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
-    for src, tgt_in, tgt_out in tqdm(train_loader, total=len(train_loader),
-                                                   desc=f'epoch: {epoch+1}/{args.max_epoch}',
-                                                   bar_format='{l_bar}{bar:20}{r_bar}'):
+    for src, tgt_in, tgt_out in tqdm(train_loader, total=len(train_loader), desc=f'epoch: {epoch+1}/{args.max_epoch}',
+                                     bar_format='{l_bar}{bar:20}{r_bar}'):
         if args.gpu:
             src = src.to(device)
-            # s_len = s_len.to(device)
             tgt_in = tgt_in.to(device)
             tgt_out = tgt_out.to(device)
-            # t_len = t_len.to(device)
         with amp.autocast():
             out = model(src, tgt_in)
             # t0 = time.time()
