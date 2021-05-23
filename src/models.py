@@ -12,14 +12,14 @@ class Encoder(nn.Module):
         for _ in range(hidden_layer_num):
             self.sub_layers.append(Encoder_Sublayer(d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda))
 
-    def forward(self, src, s_len):
+    def forward(self, src, enc_pad_mask):
         """
         :param src: the source_input = (batch_size, max_sen_len)
-        :param s_len:
+        :param enc_pad_mask:
         :return: out = (batch_size, max_sen_len, d_model)
         """
         for sub_layer in self.sub_layers:
-            src = sub_layer(src, s_len)                # out = (batch_size, max_sen_len, d_model)
+            src = sub_layer(src, enc_pad_mask)                # out = (batch_size, max_sen_len, d_model)
         return src
 
 
@@ -30,16 +30,16 @@ class Decoder(nn.Module):
         for _ in range(hidden_layer_num):
             self.sub_layers.append(Decoder_Sublayer(d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda))
 
-    def forward(self, tgt, hs, s_len, t_len):
+    def forward(self, tgt, hs, dec_combined_mask, dec_pad_mask):
         """
         :param tgt: the target input = (batch_size, seq_len(max_sen_len))
         :param hs: the output of the last Encoder layer.    hs = (batch_size, max_sen_len, d_model)
-        :param s_len:
-        :param t_len:
+        :param dec_combined_mask:
+        :param dec_pad_mask:
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
         for sub_layer in self.sub_layers:
-            tgt = sub_layer(tgt, hs, s_len, t_len)            # out = (batch_size, seq_len(max_sen_len), d_model)
+            tgt = sub_layer(tgt, hs, dec_combined_mask, dec_pad_mask)            # out = (batch_size, seq_len, d_model)
         return tgt
 
 
@@ -59,6 +59,8 @@ class Transformer(nn.Module):
         :param cuda: (int) gpu number
         """
         super(Transformer, self).__init__()
+        self.gpu = gpu
+        self.cuda = cuda
         self.embed_weight = embed_weight
         self.input_layer = InputLayer(D, self.embed_weight, max_sen_len, dropout, gpu, cuda)
         self.encoder = Encoder(max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda)
@@ -66,15 +68,18 @@ class Transformer(nn.Module):
         self.fc = nn.Linear(d_model, V, bias=False)
         self.fc.weight_ = self.embed_weight.T
 
-    def forward(self, src_input, tgt_input, s_len, t_len):
+    def forward(self, src_input, tgt_input):
         # print("\n")
         # t1 = time.time()
+        enc_pad_mask = get_pad_mask(src_input, self.gpu, self.cuda)
         src = self.input_layer(src_input)
-        hs = self.encoder(src, s_len)            # hs = (batch_size, max_sen_len, d_model)
+        hs = self.encoder(src, enc_pad_mask)            # hs = (batch_size, max_sen_len, d_model)
         # t2 = time.time()
         # print("Encoder: ", t2 - t1)
+        dec_combined_mask = get_combined_mask(tgt_input, self.gpu, self.cuda)
+        dec_pad_mask = get_pad_mask(src_input, self.gpu, self.cuda)
         tgt = self.input_layer(tgt_input)
-        out = self.decoder(tgt, hs, s_len, t_len)       # out = (batch_size, seq_len(max_sen_len), d_model)
+        out = self.decoder(tgt, hs, dec_combined_mask, dec_pad_mask)       # out = (batch_size, seq_len, d_model)
         # t3 = time.time()
         # print("Decoder: ", t3-t2)
         out = self.fc(out)                      # out = (batch_size, seq_len(max_sen_len), V)

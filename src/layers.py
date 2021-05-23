@@ -60,20 +60,20 @@ class ScaledDotProdAtt(nn.Module):
         self.gpu = gpu
         self.cuda = cuda
 
-    def forward(self, q, k, v, sen_len):
+    def forward(self, q, k, v, zero_mask=None):
         """
         :param q: (batch_size, head_num, seq_len(max_sen_len), d_k)
         :param k: (batch_size, head_num, seq_len(max_sen_len), d_k)
         :param v: (batch_size, head_num, seq_len(max_sen_len), d_v)
-        :param sen_len: (batch_size, )
+        :param zero_mask: (batch_size, 1, 1, seq_len) or (batch_size, 1, seq_len, seq_len)
         :return:
         """
         att = torch.matmul(q, k.transpose(2, 3))        # att = (batch_size, head_num, seq_len, seq_len)
         att = att / np.sqrt(self.d)
         if self.ahead_mask:
             self.att_inf_mask += self.inf_mask
-        if sen_len is not None:
-            att = apply_att_mask(att, sen_len, self.att_inf_mask, self.gpu, self.cuda)
+        if zero_mask is not None:
+            att += zero_mask * (-1e+9)
         att = F.softmax(att, dim=-1)
         att = torch.matmul(att, v)                      # att = (batch_size, head_num, seq_len, d_v)
         return att
@@ -97,12 +97,12 @@ class MultiHeadAttention(nn.Module):
         nn.init.xavier_uniform_(self.linear_v.weight)
         nn.init.xavier_uniform_(self.linear_o.weight)
 
-    def forward(self, q, k, v, sen_len):
+    def forward(self, q, k, v, zero_mask):
         """
         :param q: (batch_size, seq_len (max_sen_len), embed_dim)
         :param k: (batch_size, seq_len (max_sen_len), embed_dim)
         :param v: (batch_size, seq_len (max_sen_len), embed_dim)
-        :param sen_len:
+        :param zero_mask: (batch_size, 1, 1, seq_len) or (batch_size, 1, seq_len, seq_len)
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
         batch_size, seq_len, _ = q.size()
@@ -115,7 +115,7 @@ class MultiHeadAttention(nn.Module):
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        att = self.attention(q, k, v, sen_len)        # att = (batch_size, head_num, seq_len (max_sen_len), d_v)
+        att = self.attention(q, k, v, zero_mask)        # att = (batch_size, head_num, seq_len (max_sen_len), d_v)
         att = att.transpose(1, 2)                   # att = (batch_size, seq_len(max_sen_len), head_num, d_v)
         att = att.contiguous().view(batch_size, seq_len, -1)     # att = (batch_size, seq_len(max_sen_len), d_model)
         out = self.linear_o(att)                      # out = (batch_size, seq_len(max_sen_len), d_model)
@@ -160,14 +160,14 @@ class Encoder_Sublayer(nn.Module):
         self.multi_head_attention = MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=False)
         self.pos_feed_forward = PositionwiseFFN(d_model, d_ff, dropout)
 
-    def forward(self, x, s_len):
+    def forward(self, x, enc_pad_mask):
         """
         :param x: (the output of the embedding layer) or (the output of the previous encoder sublayer)
                x = (batch_size, max_sen_len, d_model)
-        :param s_len:
+        :param enc_pad_mask: (batch_size, 1, 1, seq_len)
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
-        att = self.multi_head_attention(x, x, x, s_len)        # x = (batch_size, seq_len(max_sen_len), d_model)
+        att = self.multi_head_attention(x, x, x, enc_pad_mask)        # x = (batch_size, seq_len(max_sen_len), d_model)
         out = self.pos_feed_forward(att)                # out = (batch_size, seq_len(max_sen_len), d_model)
         return out
 
@@ -180,16 +180,16 @@ class Decoder_Sublayer(nn.Module):
         self.multi_head_attention = MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=False)
         self.pos_feed_forward = PositionwiseFFN(d_model, d_ff, dropout)
 
-    def forward(self, x, hs, s_len, t_len):
+    def forward(self, x, hs, dec_combined_mask, dec_pad_mask):
         """
         :param x: (the output of the embedding layer) or (the output of the previous encoder sublayer)
                x = (batch_size, seq_len(max_sen_len), d_model)
         :param hs: the output of the last Encoder layer.    hs = (batch_size, max_sen_len, d_model)
-        :param s_len:
-        :param t_len:
+        :param dec_combined_mask: (batch_size, 1, seq_len, seq_len)
+        :param dec_pad_mask: (batch_size, 1, 1, seq_len)
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
-        att1 = self.masked_multi_head_attention(x, x, x, t_len)    # att1 = (batch_size, seq_len(max_sen_len), d_model)
-        att2 = self.multi_head_attention(att1, hs, hs, s_len)      # att2 = (batch_size, seq_len(max_sen_len), d_model)
+        att1 = self.masked_multi_head_attention(x, x, x, dec_combined_mask)    # att1 = (batch_size, seq_len(max_sen_len), d_model)
+        att2 = self.multi_head_attention(att1, hs, hs, dec_pad_mask)      # att2 = (batch_size, seq_len(max_sen_len), d_model)
         out = self.pos_feed_forward(att2)                       # out = (batch_size, seq_len(max_sen_len), d_model)
         return out

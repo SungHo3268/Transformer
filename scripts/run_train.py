@@ -24,8 +24,8 @@ parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=int, default=5678)
 parser.add_argument('--max_sen_len', type=int, default=128)
 parser.add_argument('--max_epoch', type=int, default=18)        # 1epoch = about 5612 steps/    18 epoch = 100K steps
-parser.add_argument('--step_batch', type=int, default=30)       # 780 sentences are about 25000 tokens = 1 step
-parser.add_argument('--batch_size', type=int, default=26)       # step_batch * batch_size = about 780 sentences = 1 step
+parser.add_argument('--step_batch', type=int, default=26)       # 780 sentences are about 25000 tokens = 1 step
+parser.add_argument('--batch_size', type=int, default=30)       # step_batch * batch_size = about 780 sentences = 1 step
 parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--eval_interval', type=int, default=10)
 parser.add_argument('--gpu', type=_bool, default=True)
@@ -92,31 +92,27 @@ for epoch in range(args.max_epoch):
     # load the preprocessed dataset
     print('Loading input data...')
     with open(os.path.join(pre_dir, f'source_all.pkl'), 'rb') as fr:
-        src_input, src_len = pickle.load(fr)
+        src_input, _ = pickle.load(fr)
     with open(os.path.join(pre_dir, f'target_all.pkl'), 'rb') as fr:
-        tgt_input, tgt_output, tgt_len = pickle.load(fr)
+        tgt_input, tgt_output, _ = pickle.load(fr)
 
     print('Shuffling the data...')
-    per = np.random.permutation(len(src_len))
+    per = np.random.permutation(len(src_input))
     src_input = src_input[per]
-    src_len = src_len[per]
     tgt_input = tgt_input[per]
     tgt_output = tgt_output[per]
-    tgt_len = tgt_len[per]
 
     print('Loading to gpu...')
     src_input = torch.from_numpy(src_input).to(torch.int64)
-    src_len = torch.from_numpy(src_len).to(torch.int64)
     tgt_input = torch.from_numpy(tgt_input).to(torch.int64)
     tgt_output = torch.from_numpy(tgt_output).to(torch.int64)
-    tgt_len = torch.from_numpy(tgt_len).to(torch.int64)
 
     # make batch
     print('Making batch...')
-    train = TensorDataset(src_input, src_len, tgt_input, tgt_output, tgt_len)
+    train = TensorDataset(src_input, tgt_input, tgt_output)
     train_loader = DataLoader(train, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
-    for src, s_len, tgt_in, tgt_out, t_len in tqdm(train_loader, total=len(train_loader),
+    for src, tgt_in, tgt_out in tqdm(train_loader, total=len(train_loader),
                                                    desc=f'epoch: {epoch+1}/{args.max_epoch}',
                                                    bar_format='{l_bar}{bar:20}{r_bar}'):
         if args.gpu:
@@ -126,7 +122,7 @@ for epoch in range(args.max_epoch):
             tgt_out = tgt_out.to(device)
             # t_len = t_len.to(device)
         with amp.autocast():
-            out = model(src, tgt_in, s_len, t_len)
+            out = model(src, tgt_in)
             # t0 = time.time()
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
             loss /= args.step_batch
