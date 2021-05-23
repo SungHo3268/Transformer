@@ -157,8 +157,10 @@ for epoch in range(args.max_epoch):
                         temp += word.replace('@@', '')
                         continue
                     if temp:
+                        temp += word
                         sen.append(temp)
                         temp = ''
+                        continue
                     sen.append(word)
                 if temp:                # if the last word was included '@@' add to sentence.
                     sen.append(temp)
@@ -169,5 +171,6 @@ for epoch in range(args.max_epoch):
     print('Saving the model...')
     torch.save(model.state_dict(), os.path.join(log_dir, 'ckpt/model.ckpt'))
     torch.save(optimizer.state_dict(), os.path.join(log_dir, 'ckpt/optimizer.ckpt'))
+    torch.save(scaler.state_dict(), os.path.join(log_dir, 'ckpt/scaler.ckpt'))
     print('Complete..!')
     print('\n')

@@ -1,5 +1,6 @@
 import argparse
 from distutils.util import strtobool as _bool
+import sacrebleu
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -122,11 +123,15 @@ for line in output:
             temp += word.replace('@@', '')
             continue
         if temp:
+            temp += word
             sen.append(temp)
             temp = ''
+            continue
         sen.append(word)
     if temp:                # if the last word was included '@@' add to sentence.
         sen.append(temp)
+    if sen[-1] != '\n':
+        sen.append('\n')
     sentence = ' '.join(sen)
     result.append(sentence)
 
@@ -147,14 +152,20 @@ for batch in tgt_label:
                 temp += word.replace('@@', '')
                 continue
             if temp:
+                temp += word
                 sen.append(temp)
                 temp = ''
+                continue
             sen.append(word)
         if temp:                # if the last word was included '@@' add to sentence.
             sen.append(temp)
+        if sen[-1] != '\n':
+            sen.append('\n')
         sentence = ' '.join(sen)
         label.append(sentence)
 
+bleu = sacrebleu.corpus_bleu(result, [label], force=True, lowercase=False)
+print("sacre bleu: ", bleu.score)
 
 test_dir = os.path.join(log_dir, 'test')
 if not os.path.exists(test_dir):
