@@ -11,6 +11,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from src.models import Transformer
+from src.functions import decoding
 
 
 ############################ Argparse ############################
@@ -86,7 +87,7 @@ test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True,
 
 
 ############################ Start Test ############################
-output = torch.empty(len(test_loader), args.batch_size, args.max_sen_len)
+result = torch.empty(len(test_loader), args.batch_size, args.max_sen_len)
 cur = 0
 tgt_label = []
 for src_in, tgt_out in tqdm(test_loader, total=len(test_loader), bar_format='{l_bar}{bar:20}{r_bar}'):
@@ -102,75 +103,23 @@ for src_in, tgt_out in tqdm(test_loader, total=len(test_loader), bar_format='{l_
         pred = torch.max(out, dim=-1)[1]        # pred = (batch_size, max_sen_len)
         if i != (args.max_sen_len - 1):
             tgt_in[:, i+1] = pred[:, i]
-        output[cur, :, i] = pred[:, i]
+        result[cur, :, i] = pred[:, i]
     cur += 1
     tgt_label.append(tgt_out)
+result = result.to(torch.int64).view(-1, args.max_sen_len)
 
-output = output.to(torch.int64)
-output = output.view(-1, args.max_sen_len)
+# Convert index to string representation by id_to_word dictionary.
+output = decoding(result, id_to_word)
+label = decoding(tgt_label, id_to_word)
 
-result = []                 # result = [(len(test_loader)*batch_size, ]
-for line in output:
-    sen = []
-    temp = ''
-    for idx in line:
-        word = id_to_word[int(idx)]
-        if word == '</s>':
-            temp = ''
-            sen.append('\n')
-            break
-        if '@@' in word:
-            temp += word.replace('@@', '')
-            continue
-        if temp:
-            temp += word
-            sen.append(temp)
-            temp = ''
-            continue
-        sen.append(word)
-    if temp:                # if the last word was included '@@' add to sentence.
-        sen.append(temp)
-    if sen[-1] != '\n':
-        sen.append('\n')
-    sentence = ' '.join(sen)
-    result.append(sentence)
-
-
-label = []
-for batch in tgt_label:
-    for line in batch:
-        sen = []
-        temp = ''
-        for idx in line:
-            word = id_to_word[int(idx)]
-            if word == '</s>':
-                sen.append(temp)
-                temp = ''
-                sen.append('\n')
-                break
-            if '@@' in word:
-                temp += word.replace('@@', '')
-                continue
-            if temp:
-                temp += word
-                sen.append(temp)
-                temp = ''
-                continue
-            sen.append(word)
-        if temp:                # if the last word was included '@@' add to sentence.
-            sen.append(temp)
-        if sen[-1] != '\n':
-            sen.append('\n')
-        sentence = ' '.join(sen)
-        label.append(sentence)
-
-bleu = sacrebleu.corpus_bleu(result, [label], force=True, lowercase=False)
+# Evaluate the SACRE BLEU
+bleu = sacrebleu.corpus_bleu(output, [label], force=True, lowercase=False)
 print("sacre bleu: ", bleu.score)
 
 test_dir = os.path.join(log_dir, 'test')
 if not os.path.exists(test_dir):
     os.mkdir(test_dir)
 with open(os.path.join(test_dir, 'output.txt'), 'w', encoding='utf8') as fw:
-    fw.writelines(result)
+    fw.writelines(output)
 with open(os.path.join(test_dir, 'label.txt'), 'w', encoding='utf8') as fw:
     fw.writelines(label)

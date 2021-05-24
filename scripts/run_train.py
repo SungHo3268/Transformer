@@ -10,7 +10,6 @@ import torch.cuda.amp as amp
 import numpy as np
 from tqdm.auto import tqdm
 import pickle
-import time
 import sys
 import os
 sys.path.append(os.getcwd())
@@ -122,14 +121,9 @@ for epoch in range(args.max_epoch):
             tgt_out = tgt_out.to(device)
         with amp.autocast():
             out = model(src, tgt_in)
-            # t0 = time.time()
             loss = criterion(out.view(-1, V), tgt_out.view(-1))
             loss /= args.step_batch
-        # t1 = time.time()
-        # print("criterion: ", t1-t0)
         scaler.scale(loss).backward()
-        # t2 = time.time()
-        # print("backward: ", t2-t1)
         total_loss += loss.data
         stack += 1
         if stack % args.step_batch == 0:

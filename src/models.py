@@ -2,15 +2,14 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from src.layers import *
-import time
 
 
 class Encoder(nn.Module):
-    def __init__(self, max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
+    def __init__(self, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
         super(Encoder, self).__init__()
         self.sub_layers = nn.ModuleList()
         for _ in range(hidden_layer_num):
-            self.sub_layers.append(Encoder_Sublayer(d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda))
+            self.sub_layers.append(Encoder_Sublayer(d_model, d_ff, head_num, dropout, gpu, cuda))
 
     def forward(self, src, enc_pad_mask):
         """
@@ -24,11 +23,11 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
+    def __init__(self, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda):
         super(Decoder, self).__init__()
         self.sub_layers = nn.ModuleList()
         for _ in range(hidden_layer_num):
-            self.sub_layers.append(Decoder_Sublayer(d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda))
+            self.sub_layers.append(Decoder_Sublayer(d_model, d_ff, head_num, dropout, gpu, cuda))
 
     def forward(self, tgt, hs, dec_combined_mask, dec_pad_mask):
         """
@@ -63,26 +62,18 @@ class Transformer(nn.Module):
         self.cuda = cuda
         self.embed_weight = embed_weight
         self.input_layer = InputLayer(D, self.embed_weight, max_sen_len, dropout, gpu, cuda)
-        self.encoder = Encoder(max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda)
-        self.decoder = Decoder(max_sen_len, dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda)
+        self.encoder = Encoder(dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda)
+        self.decoder = Decoder(dropout, hidden_layer_num, d_model, d_ff, head_num, gpu, cuda)
         self.fc = nn.Linear(d_model, V, bias=False)
         self.fc.weight_ = self.embed_weight.T
 
     def forward(self, src_input, tgt_input):
-        # print("\n")
-        # t1 = time.time()
         enc_pad_mask = get_pad_mask(src_input, self.gpu, self.cuda)
         src = self.input_layer(src_input)
         hs = self.encoder(src, enc_pad_mask)            # hs = (batch_size, max_sen_len, d_model)
-        # t2 = time.time()
-        # print("Encoder: ", t2 - t1)
         dec_combined_mask = get_combined_mask(tgt_input, self.gpu, self.cuda)
         dec_pad_mask = get_pad_mask(src_input, self.gpu, self.cuda)
         tgt = self.input_layer(tgt_input)
         out = self.decoder(tgt, hs, dec_combined_mask, dec_pad_mask)       # out = (batch_size, seq_len, d_model)
-        # t3 = time.time()
-        # print("Decoder: ", t3-t2)
         out = self.fc(out)                      # out = (batch_size, seq_len(max_sen_len), V)
-        # t4 = time.time()
-        # print("Fully connected: ", t4-t3)
         return out

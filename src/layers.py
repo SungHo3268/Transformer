@@ -50,13 +50,10 @@ class InputLayer(nn.Module):
 
 
 class ScaledDotProdAtt(nn.Module):
-    def __init__(self, d, max_sen_len, ahead_mask, gpu, cuda):
+    def __init__(self, d, ahead_mask, gpu, cuda):
         super(ScaledDotProdAtt, self).__init__()
         self.d = d
         self.ahead_mask = ahead_mask
-        if self.ahead_mask:
-            self.inf_mask = get_forward_mask(max_sen_len)
-        self.att_inf_mask = get_att_mask(max_sen_len)
         self.gpu = gpu
         self.cuda = cuda
 
@@ -70,8 +67,6 @@ class ScaledDotProdAtt(nn.Module):
         """
         att = torch.matmul(q, k.transpose(2, 3))        # att = (batch_size, head_num, seq_len, seq_len)
         att = att / np.sqrt(self.d)
-        if self.ahead_mask:
-            self.att_inf_mask += self.inf_mask
         if zero_mask is not None:
             att += zero_mask * (-1e+9)
         att = F.softmax(att, dim=-1)
@@ -80,14 +75,14 @@ class ScaledDotProdAtt(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, head_num, max_sen_len, dropout, gpu, cuda, mask):
+    def __init__(self, d_model, head_num, dropout, gpu, cuda, mask):
         super(MultiHeadAttention, self).__init__()
         self.head_num = head_num
         self.d = int(d_model / head_num)
         self.linear_q = nn.Linear(d_model, d_model, bias=False)
         self.linear_k = nn.Linear(d_model, d_model, bias=False)
         self.linear_v = nn.Linear(d_model, d_model, bias=False)
-        self.attention = ScaledDotProdAtt(self.d, max_sen_len, mask, gpu, cuda)
+        self.attention = ScaledDotProdAtt(self.d, mask, gpu, cuda)
         self.linear_o = nn.Linear(d_model, d_model, bias=False)
         self.dropout = nn.Dropout(p=dropout)
         self.layer_norm = nn.LayerNorm(d_model)
@@ -155,9 +150,9 @@ class PositionwiseFFN(nn.Module):
 
 
 class Encoder_Sublayer(nn.Module):
-    def __init__(self, d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda):
+    def __init__(self, d_model, d_ff, head_num, dropout, gpu, cuda):
         super(Encoder_Sublayer, self).__init__()
-        self.multi_head_attention = MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=False)
+        self.multi_head_attention = MultiHeadAttention(d_model, head_num, dropout, gpu, cuda, mask=False)
         self.pos_feed_forward = PositionwiseFFN(d_model, d_ff, dropout)
 
     def forward(self, x, enc_pad_mask):
@@ -173,11 +168,11 @@ class Encoder_Sublayer(nn.Module):
 
 
 class Decoder_Sublayer(nn.Module):
-    def __init__(self, d_model, d_ff, head_num, max_sen_len, dropout, gpu, cuda):
+    def __init__(self, d_model, d_ff, head_num, dropout, gpu, cuda):
         super(Decoder_Sublayer, self).__init__()
         self.masked_multi_head_attention = \
-            MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=True)
-        self.multi_head_attention = MultiHeadAttention(d_model, head_num, max_sen_len, dropout, gpu, cuda, mask=False)
+            MultiHeadAttention(d_model, head_num, dropout, gpu, cuda, mask=True)
+        self.multi_head_attention = MultiHeadAttention(d_model, head_num, dropout, gpu, cuda, mask=False)
         self.pos_feed_forward = PositionwiseFFN(d_model, d_ff, dropout)
 
     def forward(self, x, hs, dec_combined_mask, dec_pad_mask):
@@ -189,7 +184,7 @@ class Decoder_Sublayer(nn.Module):
         :param dec_pad_mask: (batch_size, 1, 1, seq_len)
         :return: out = (batch_size, seq_len(max_sen_len), d_model)
         """
-        att1 = self.masked_multi_head_attention(x, x, x, dec_combined_mask)    # att1 = (batch_size, seq_len(max_sen_len), d_model)
-        att2 = self.multi_head_attention(att1, hs, hs, dec_pad_mask)      # att2 = (batch_size, seq_len(max_sen_len), d_model)
-        out = self.pos_feed_forward(att2)                       # out = (batch_size, seq_len(max_sen_len), d_model)
+        att1 = self.masked_multi_head_attention(x, x, x, dec_combined_mask)    # att1 = (batch_size, seq_len, d_model)
+        att2 = self.multi_head_attention(att1, hs, hs, dec_pad_mask)      # att2 = (batch_size, seq_len, d_model)
+        out = self.pos_feed_forward(att2)                       # out = (batch_size, seq_len, d_model)
         return out
