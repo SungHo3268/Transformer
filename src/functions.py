@@ -30,7 +30,7 @@ def get_combined_mask(tensor, gpu, cuda):
 
 def decoding(encoded, id_to_word):
     decoded = []
-    if type(encoded) == torch.Tensor:
+    if type(encoded) == torch.Tensor:       # encoded is a output
         for line in encoded:
             sen = []
             temp = ''
@@ -58,7 +58,7 @@ def decoding(encoded, id_to_word):
             decoded.append(sentence)
         return decoded
 
-    else:
+    else:                                   # encoded is a label
         for batch in encoded:
             for line in batch:
                 sen = []
