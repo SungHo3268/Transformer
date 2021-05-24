@@ -48,7 +48,7 @@ train_de = data_load(p_train_de)
 #     pickle.dump((target_input, target_output, target_len), fw, protocol=4)
 
 
-################################## Preprocess the test datasets ##################################
+# ################################## Preprocess the test datasets ##################################
 # p_test_en = os.path.join(data_dir, 'newstest2014.tok.clean.bpe.32000.en')
 # p_test_de = os.path.join(data_dir, 'newstest2014.tok.clean.bpe.32000.de')
 # test_en = data_load(p_test_en)

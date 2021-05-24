@@ -45,43 +45,36 @@ hidden_layer_num = 6
 d_ff = 2048
 d_model = 512
 head_num = 8
-warmup_steps = 4000
-beta1 = 0.9
-beta2 = 0.98
-epsilon = 10**(-9)
 dropout = 0.1
-label_smoothing = 0.1
 np.random.seed(args.random_seed)
 torch.manual_seed(args.random_seed)
 
 
 ############################ Load pretrained model ############################
 # load the save model
-print("Load the pretrained Transformer model.")
+print("Loading the pretrained Transformer model...")
 embed_weight = nn.parameter.Parameter(torch.empty(V, embed_dim), requires_grad=True)
 model = Transformer(V, embed_dim, embed_weight, args.max_sen_len, dropout,
                     hidden_layer_num, d_model, d_ff, head_num, args.gpu, args.cuda)
 model.load_state_dict(torch.load(os.path.join(log_dir, 'ckpt/model.ckpt'), map_location='cuda:0'))
 model.eval()
-device = None
-if args.gpu:
-    device = torch.device(f'cuda:{args.cuda}')
-else:
-    device = torch.device('cpu')
+device = torch.device(f'cuda:{args.cuda}') if args.gpu else torch.device('cpu')
 model = model.to(device)
 
+
 ############################ Input Data ############################
-print("Load the test dataset.")
+print("Loading the test dataset...")
 data_dir = 'datasets/nmt_data/preprocessed'
 with open(os.path.join(pre_dir, 'test_source_all.pkl'), 'rb') as fr:
     test_src_input, _ = pickle.load(fr)
 with open(os.path.join(pre_dir, 'test_target_all.pkl'), 'rb') as fr:
     _, test_tgt_output, _ = pickle.load(fr)
 
+print("Convert numpy into torch tensor.")
 test_src_input = torch.from_numpy(test_src_input).to(torch.int64)
 test_tgt_output = torch.from_numpy(test_tgt_output).to(torch.int64)
 
-print("Make dataset to batch.")
+print("Making dataset to batch...")
 test_dataset = TensorDataset(test_src_input, test_tgt_output)
 test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
@@ -114,7 +107,7 @@ label = decoding(tgt_label, id_to_word)
 
 # Evaluate the SACRE BLEU
 bleu = sacrebleu.corpus_bleu(output, [label], force=True, lowercase=False)
-print("sacre bleu: ", bleu.score)
+print("SACRE", bleu)
 
 # Save the output.txt and label.txt
 test_dir = os.path.join(log_dir, 'test')
