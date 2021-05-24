@@ -116,6 +116,7 @@ label = decoding(tgt_label, id_to_word)
 bleu = sacrebleu.corpus_bleu(output, [label], force=True, lowercase=False)
 print("sacre bleu: ", bleu.score)
 
+# Save the output.txt and label.txt
 test_dir = os.path.join(log_dir, 'test')
 if not os.path.exists(test_dir):
     os.mkdir(test_dir)
