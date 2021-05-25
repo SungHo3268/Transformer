@@ -29,6 +29,8 @@ parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--eval_interval', type=int, default=10)
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
+parser.add_argument('--continued', type=_bool, default=False)
+parser.add_argument('--continue_epoch', type=int, default=0)
 args = parser.parse_args()
 
 log_dir = f'log/tf_{args.step_batch}s_{args.batch_size}b_{args.max_sen_len}t'
@@ -77,19 +79,29 @@ model = Transformer(V, embed_dim, embed_weight, args.max_sen_len, dropout,
                     hidden_layer_num, d_model, d_ff, head_num, args.gpu, args.cuda)
 criterion = LabelSmoothingLoss(label_smoothing, V, ignore_index=0)
 optimizer = optim.Adam(model.parameters(), lr=0, betas=(beta1, beta2), eps=epsilon)
+scaler = amp.GradScaler()
+
+if args.continued:
+    model.load_state_dict(torch.load(os.path.join(ckpt_dir, 'model.ckpt'),
+                                     map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
+    optimizer.load_state_dict(torch.load(os.path.join(ckpt_dir, 'optimizer.ckpt'),
+                                         map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
+    scaler.load_state_dict(torch.load(os.path.join(ckpt_dir, 'scaler.ckpt'),
+                                      map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
+
 device = None
 if args.gpu:
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     criterion.to(device)
-scaler = amp.GradScaler()
 
 
 ############################ Start Train ############################
 stack = 0
 step_num = 0
 total_loss = 0
-for epoch in range(args.max_epoch):
+start_epoch = 0 if not args.continued else args.start_epoch-1
+for epoch in range(start_epoch, args.max_epoch):
     # load the preprocessed dataset
     print('Loading input data...')
     with open(os.path.join(pre_dir, 'source_all.pkl'), 'rb') as fr:
