@@ -29,7 +29,7 @@ parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--eval_interval', type=int, default=10)
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
-parser.add_argument('--continued', type=_bool, default=False)
+parser.add_argument('--restart', type=_bool, default=False)
 parser.add_argument('--continue_epoch', type=int, default=0)
 args = parser.parse_args()
 
@@ -81,7 +81,7 @@ criterion = LabelSmoothingLoss(label_smoothing, V, ignore_index=0)
 optimizer = optim.Adam(model.parameters(), lr=0, betas=(beta1, beta2), eps=epsilon)
 scaler = amp.GradScaler()
 
-if args.continued:
+if args.restart:
     model.load_state_dict(torch.load(os.path.join(ckpt_dir, 'model.ckpt'),
                                      map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
     optimizer.load_state_dict(torch.load(os.path.join(ckpt_dir, 'optimizer.ckpt'),
@@ -100,7 +100,7 @@ if args.gpu:
 stack = 0
 step_num = 0
 total_loss = 0
-start_epoch = 0 if not args.continued else args.start_epoch-1
+start_epoch = 0 if not args.restart else args.start_epoch-1
 for epoch in range(start_epoch, args.max_epoch):
     # load the preprocessed dataset
     print('Loading input data...')
