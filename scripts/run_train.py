@@ -12,25 +12,25 @@ from tqdm.auto import tqdm
 import pickle
 import sys
 import os
+
 sys.path.append(os.getcwd())
 from src.models import Transformer
 from src.criterion import LabelSmoothingLoss
-
 
 ############################ Argparse ############################
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=int, default=5678)
-parser.add_argument('--max_sen_len', type=int, default=128)
-parser.add_argument('--max_epoch', type=int, default=18)        # 1epoch = about 5612 steps/    18 epoch = 100K steps
-parser.add_argument('--step_batch', type=int, default=26)       # 780 sentences are about 25000 tokens = 1 step
-parser.add_argument('--batch_size', type=int, default=30)       # step_batch * batch_size = about 780 sentences = 1 step
+parser.add_argument('--max_sen_len', type=int, default=256)
+parser.add_argument('--max_epoch', type=int, default=18)  # 1epoch = about 5612 steps/    18 epoch = 100K steps
+parser.add_argument('--step_batch', type=int, default=26)  # 780 sentences are about 25000 tokens = 1 step
+parser.add_argument('--batch_size', type=int, default=30)  # step_batch * batch_size = about 780 sentences = 1 step
 parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--eval_interval', type=int, default=10)
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
 parser.add_argument('--restart', type=_bool, default=False)
-parser.add_argument('--continue_epoch', type=int, default=0)
+parser.add_argument('--start_epoch', type=int, default=0)
 args = parser.parse_args()
 
 log_dir = f'log/tf_{args.step_batch}s_{args.batch_size}b_{args.max_sen_len}t'
@@ -59,7 +59,7 @@ head_num = 8
 warmup_steps = 4000
 beta1 = 0.9
 beta2 = 0.98
-epsilon = 10**(-9)
+epsilon = 10 ** (-9)
 dropout = 0.1
 label_smoothing = 0.1
 np.random.seed(args.random_seed)
@@ -74,7 +74,7 @@ with open(os.path.join(pre_dir, 'dictionary.pkl'), 'rb') as fr:
 V = len(word_to_id)
 
 embed_weight = nn.parameter.Parameter(torch.empty(V, embed_dim), requires_grad=True)
-nn.init.normal_(embed_weight, mean=0, std=embed_dim**(-0.5))
+nn.init.normal_(embed_weight, mean=0, std=embed_dim ** (-0.5))
 model = Transformer(V, embed_dim, embed_weight, args.max_sen_len, dropout,
                     hidden_layer_num, d_model, d_ff, head_num, args.gpu, args.cuda)
 criterion = LabelSmoothingLoss(label_smoothing, V, ignore_index=0)
@@ -97,10 +97,10 @@ if args.gpu:
 
 
 ############################ Start Train ############################
-stack = 0
-step_num = 0
+stack = (4378047 // args.batch_size) * (args.start_epoch - 1)
+step_num = stack // args.step_batch
 total_loss = 0
-start_epoch = 0 if not args.restart else args.start_epoch-1
+start_epoch = args.start_epoch - 1 if args.restart else 0
 for epoch in range(start_epoch, args.max_epoch):
     # load the preprocessed dataset
     print('Loading input data...')
@@ -115,7 +115,7 @@ for epoch in range(start_epoch, args.max_epoch):
     tgt_input = tgt_input[per]
     tgt_output = tgt_output[per]
 
-    print('Convert numpy to torch...')
+    print('Converting numpy to torch...')
     src_input = torch.from_numpy(src_input).to(torch.int64)
     tgt_input = torch.from_numpy(tgt_input).to(torch.int64)
     tgt_output = torch.from_numpy(tgt_output).to(torch.int64)
@@ -125,7 +125,7 @@ for epoch in range(start_epoch, args.max_epoch):
     train = TensorDataset(src_input, tgt_input, tgt_output)
     train_loader = DataLoader(train, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
-    for src, tgt_in, tgt_out in tqdm(train_loader, total=len(train_loader), desc=f'epoch: {epoch+1}/{args.max_epoch}',
+    for src, tgt_in, tgt_out in tqdm(train_loader, total=len(train_loader), desc=f'epoch: {epoch + 1}/{args.max_epoch}',
                                      bar_format='{l_bar}{bar:20}{r_bar}'):
         if args.gpu:
             src = src.to(device)
@@ -168,7 +168,7 @@ for epoch in range(start_epoch, args.max_epoch):
                         temp = ''
                         continue
                     sen.append(word)
-                if temp:                # if the last word was included '@@' add to sentence.
+                if temp:  # if the last word was included '@@' add to sentence.
                     sen.append(temp)
                 print(' '.join(sen))
                 #######
