@@ -21,16 +21,16 @@ from src.criterion import LabelSmoothingLoss
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='dummy')
 parser.add_argument('--port', type=int, default=5678)
-parser.add_argument('--max_sen_len', type=int, default=256)
+parser.add_argument('--max_sen_len', type=int, default=128)
 parser.add_argument('--max_epoch', type=int, default=18)  # 1epoch = about 5612 steps/    18 epoch = 100K steps
 parser.add_argument('--step_batch', type=int, default=26)  # 780 sentences are about 25000 tokens = 1 step
 parser.add_argument('--batch_size', type=int, default=30)  # step_batch * batch_size = about 780 sentences = 1 step
 parser.add_argument('--random_seed', type=int, default=42)
-parser.add_argument('--eval_interval', type=int, default=10)
+parser.add_argument('--eval_interval', type=int, default=100)
 parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
 parser.add_argument('--restart', type=_bool, default=False)
-parser.add_argument('--start_epoch', type=int, default=0)
+parser.add_argument('--restart_epoch', type=int, default=15)
 args = parser.parse_args()
 
 log_dir = f'log/tf_{args.step_batch}s_{args.batch_size}b_{args.max_sen_len}t'
@@ -86,8 +86,8 @@ if args.restart:
                                      map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
     optimizer.load_state_dict(torch.load(os.path.join(ckpt_dir, 'optimizer.ckpt'),
                                          map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
-    scaler.load_state_dict(torch.load(os.path.join(ckpt_dir, 'scaler.ckpt'),
-                                      map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
+    # scaler.load_state_dict(torch.load(os.path.join(ckpt_dir, 'scaler.ckpt'),
+    #                                   map_location=f'cuda:{args.cuda}' if args.gpu else 'cpu'))
 
 device = None
 if args.gpu:
@@ -97,10 +97,10 @@ if args.gpu:
 
 
 ############################ Start Train ############################
-stack = (4378047 // args.batch_size) * (args.start_epoch - 1)
-step_num = stack // args.step_batch
+stack = int((4378047 // args.batch_size) * (args.restart_epoch-1)) if args.restart else 0
+step_num = int(stack // args.step_batch) if args.restart else 0
 total_loss = 0
-start_epoch = args.start_epoch - 1 if args.restart else 0
+start_epoch = args.restart_epoch - 1 if args.restart else 0
 for epoch in range(start_epoch, args.max_epoch):
     # load the preprocessed dataset
     print('Loading input data...')
@@ -138,6 +138,8 @@ for epoch in range(start_epoch, args.max_epoch):
         scaler.scale(loss).backward()
         total_loss += loss.data
         stack += 1
+        if step_num == 1000000:
+            break
         if stack % args.step_batch == 0:
             step_num += 1
             optimizer.param_groups[0]['lr'] = d_model ** (-0.5) * np.minimum(step_num ** (-0.5),

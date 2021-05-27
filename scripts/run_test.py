@@ -26,8 +26,7 @@ parser.add_argument('--gpu', type=_bool, default=True)
 parser.add_argument('--cuda', type=int, default=0)
 args = parser.parse_args()
 
-# log_dir = f'log/tf_{args.step_batch}s_{args.batch_size}b_{args.max_sen_len}t'
-log_dir = 'log/tf_15s_52b_128t'
+log_dir = f'log/tf_{args.step_batch}s_{args.batch_size}b_{args.max_sen_len}t'
 if not os.path.exists(log_dir):
     os.mkdir(log_dir)
 

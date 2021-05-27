@@ -1,0 +1,1 @@
+{"mode": "dummy", "port": 5678, "max_sen_len": 128, "max_epoch": 18, "step_batch": 15, "batch_size": 52, "random_seed": 42, "eval_interval": 500, "gpu": 1, "cuda": 0}
