@@ -2,11 +2,11 @@ import torch
 
 
 def get_ahead_mask(seq_len, gpu, cuda):
-    zero_ahaed_mask = torch.ones(seq_len, seq_len)
+    zero_ahead_mask = torch.ones(seq_len, seq_len)
     if gpu:
-        zero_ahaed_mask = zero_ahaed_mask.to(torch.device(f'cuda:{cuda}'))
-    zero_ahaed_mask = 1 - torch.tril(zero_ahaed_mask)
-    return zero_ahaed_mask                  # zero_ahead_mask = (seq_len, seq_len)
+        zero_ahead_mask = zero_ahead_mask.to(torch.device(f'cuda:{cuda}'))
+    zero_ahead_mask = 1 - torch.tril(zero_ahead_mask)
+    return zero_ahead_mask                  # zero_ahead_mask = (seq_len, seq_len)
 
 
 def get_pad_mask(tensor, gpu, cuda):
